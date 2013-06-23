@@ -22,7 +22,7 @@ def send_reauth_email():
 
 update_sched = Scheduler()
 update_sched.daemonic = False
-update_sched.add_interval_job(check_update, seconds=10)
+update_sched.add_interval_job(check_update, minutes=5)
 update_sched.start()
 
 clean_cached_sched = Scheduler()
