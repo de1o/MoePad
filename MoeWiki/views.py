@@ -23,7 +23,9 @@ def mystrptime(str):
 def findNewestItem(newFeeds):
     recentItems = [item.title for item in WikiItems.objects.all() if item.was_add_recently()]
     forbiddenItems = [item.title for item in ForbiddenWikiItems.objects.all()]
-    newFeeds = [feed for feed in newFeeds if (mystrptime(feed['date']) >= (timezone.now() - datetime.timedelta(hours=12)))]
+    # remove tzinfo to convert into tz naive time
+    recent_time_limit = (timezone.now().astimezone(timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12))
+    newFeeds = [feed for feed in newFeeds if (mystrptime(feed['date']) >= recent_time_limit)]
     if not recentItems:
         return newFeeds[0]
     for newItem in newFeeds:
@@ -82,6 +84,7 @@ def getNewWikiItem():
     feedToBeSend = findNewestItem(newFeeds)
     if not feedToBeSend:
         return None
+
     WikiItemData = WikiItems(title=feedToBeSend["title"], link=feedToBeSend["link"], date=feedToBeSend["date"])
     WikiItemData.save()
     img = getImage(feedToBeSend["link"])
