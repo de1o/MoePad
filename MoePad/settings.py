@@ -1,10 +1,14 @@
+# -*- coding: utf-8 -*-
 import os
 
-DEBUG = True
+DEBUG = False
 TEMPLATE_DEBUG = DEBUG
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'www.yourhost.com']
+
 
 ADMINS = (
     # ('Your Name', 'your_email@example.com'),
+    ('delo', 'deloeating@gmail.com'),
 )
 
 MANAGERS = ADMINS
@@ -151,3 +155,12 @@ LOGGING = {
         },
     }
 }
+
+
+# email configuration
+EMAIL_USE_TLS = True  # 如果是Gmail,这里一定要是True，亲测Gmail有效，163的25端口无效:(
+EMAIL_HOST = 'smtp.gmail.com'  # smtp server
+EMAIL_HOST_USER = 'username'
+EMAIL_HOST_PASSWORD = 'passwd'
+EMAIL_PORT = 587
+EMAIL_SUBJECT_PREFIX = '[MoePad]'

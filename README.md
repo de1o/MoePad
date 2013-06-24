@@ -14,7 +14,7 @@ Installation and Configuration:
 2.  在选定路径执行`git clone ...`。
 3.  进入MoePad目录（manage.py所在的那个目录），执行`python manage.py syncdb`，会执行数据库的创建，并建立一个** 管理员帐户**，这个可以用来管理屏蔽词数据库等。
 4.  编辑同路径下的mpconfig.py文件，填写对应的参数。参数说明见文件注释。为说明方便，假设vps所在网站域名是`website.com`
-5.  执行`screen -S bg`，创建一个后台环境用来运行django程序，在里面执行`python manage.py runserver 0.0.0.0:8000`。（端口号任意，如果服务器的80端口没被占用也可以用，保持和上一步中配置的一致即可）
+5.  执行`screen -S bg`，创建一个后台环境用来运行django程序，在里面执行`python manage.py runserver 0.0.0.0:8000`。（端口号任意，如果服务器的80端口没被占用也可以用，保持和上一步中配置的一致即可，确保MoePad/settings.py里的DEBUG是True状态）
 6.  按Ctrl+a+d从当前后台detach（Django仍在后台运行），此时django服务已经可以访问了。
 7.  访问`website.com/admin`，用建立数据库时建立的管理员登录。可以看到一些数据库的情况。点击`Forbidden wiki itemss`可以进行屏蔽词列表的管理。如果有大量词汇的话可以发给我进行批量导入。
 8.  访问`website.com`有三个链接：1是清除所有数据库里保存的授权信息。2是授权新浪帐户。3是授权腾讯帐户。
@@ -25,3 +25,5 @@ Installation and Configuration:
 	*  图片抓取是按老程序中的做法，找到合适大小的发出去
 	*  清除数据库中无用数据，是每24小时执行一次，清除执行时间12小时之前的所有数据（即保留近12小时的数据）
 	*  腾讯微博的支持尚未加入
+
+注：step 5-6是测试环境的部署配置，生产环境的配置参见deployment.md。测试环境要求MoePad/settings.py中DEBUG标识为`True`!

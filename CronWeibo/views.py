@@ -12,7 +12,11 @@ import time
 
 SinaAppKey = mpconfig.SinaAppKey
 SinaAppSecret = mpconfig.SinaAppSecret
+TencentAppKey = mpconfig.TencentAppKey
+TencentAppSecret = mpconfig.TencentAppSecret
 MoeWebsite = mpconfig.MoeWebsite
+if not MoeWebsite.startswith("http"):
+    raise Exception
 
 
 def authSina(code):
@@ -30,7 +34,8 @@ def authSinaUrl():
 
 
 def authTencentUrl():
-    return None
+    auth = qqweibo.OAuthHandler(TencentAppKey, TencentAppSecret, callback=MoeWebsite+"/tencentcallback")
+    return auth.get_authorization_url()
 
 
 def sinacallback(request):
@@ -38,6 +43,14 @@ def sinacallback(request):
     print code
     access_token, expires_in = authSina(code)
     return HttpResponse("auth info saved")
+
+
+def tencentcallback(request):
+    verifier = request['verifier']
+    token = request['token']
+    auth = qqweibo.OAuthHandler(TencentAppKey, TencentAppSecret, callback=MoeWebsite+"/tencentcallback")
+    
+    return None
 
 
 def clean_auth(request):
@@ -50,7 +63,7 @@ def loginSina(request):
 
 
 def loginTencent(requset):
-    return redirect(authTencentUrl)
+    return redirect(authTencentUrl())
 
 
 def re_auth_sina(requset):
