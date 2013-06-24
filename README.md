@@ -13,7 +13,7 @@ Installation and Configuration:
 1.  安装上面那一串依赖包，注意版本号，BeautifulSoup的使用由于参照了老程序的代码，暂时没法兼容最新的4.x版本。
 2.  在选定路径执行`git clone ...`。
 3.  进入MoePad目录（manage.py所在的那个目录），执行`python manage.py syncdb`，会执行数据库的创建，并建立一个** 管理员帐户**，这个可以用来管理屏蔽词数据库等。
-4.  编辑同路径下的mpconfig.py文件，填写对应的参数。参数说明见文件注释。为说明方便，假设vps所在网站域名是`website.com`，同时，这个域名也是在新浪/腾讯后台指定的callback域名，如果非默认80端口，也加上端口号mpconfig.MoeWebsite应该是一个类似"http://website.com:8000"的字符串（注意加上`http://`）。
+4.  编辑同路径下的mpconfig.py文件，填写对应的参数。参数说明见文件注释。为说明方便，假设vps所在网站域名是`website.com`，同时，这个域名也是在新浪/腾讯后台指定的callback域名，如果非默认80端口，也加上端口号mpconfig.MoeWebsite应该是一个类似"http://website.com:8000 "的字符串（注意加上`http://`）。
 5.  执行`screen -S bg`，创建一个后台环境用来运行django程序，在里面执行`python manage.py runserver 0.0.0.0:8000`。（端口号任意，如果服务器的80端口没被占用也可以用，保持和上一步中配置的一致即可，确保MoePad/settings.py里的DEBUG是True状态）
 6.  此时django**测试环境**的服务已经可以访问了，按Ctrl+a+d从当前后台detach（Django仍在后台运行）。
 7.  访问`website.com(:port)/admin`，用建立数据库时建立的管理员登录。可以看到一些数据库的情况。点击`Forbidden wiki itemss`可以进行屏蔽词列表的管理。如果有大量词汇的话可以我手动进行批量导入。
