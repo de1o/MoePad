@@ -9,7 +9,7 @@ urlpatterns = patterns('',
     url(r'^loginSina/', 'CronWeibo.views.loginSina'),
     url(r'^loginTencent/', 'CronWeibo.views.loginTencent'),
     url(r'^callback/', 'CronWeibo.views.sinacallback'),
-    url(r'^tencentcallback/', 'CronWeibo.views.')
+    url(r'^tencentcallback/', 'CronWeibo.views.tencentcallback'),
     url(r'^clean_auth/', 'CronWeibo.views.clean_auth'),
    	url(r'^send/', 'CronWeibo.views.send'),
    	url(r'^re_auth_sina/', 'CronWeibo.views.re_auth_sina'),

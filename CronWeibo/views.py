@@ -9,6 +9,8 @@ import mpconfig
 import weibo
 import smtplib
 import time
+import qqweibo
+import pickle
 
 SinaAppKey = mpconfig.SinaAppKey
 SinaAppSecret = mpconfig.SinaAppSecret
@@ -35,7 +37,11 @@ def authSinaUrl():
 
 def authTencentUrl():
     auth = qqweibo.OAuthHandler(TencentAppKey, TencentAppSecret, callback=MoeWebsite+"/tencentcallback")
-    return auth.get_authorization_url()
+    url = auth.get_authorization_url()
+    f = open('tx_rt', 'wb')
+    f.write(pickle.dumps(auth.request_token))
+    f.close()
+    return url
 
 
 def sinacallback(request):
@@ -46,11 +52,17 @@ def sinacallback(request):
 
 
 def tencentcallback(request):
-    verifier = request['verifier']
-    token = request['token']
+    verifier = request.GET['oauth_verifier']
     auth = qqweibo.OAuthHandler(TencentAppKey, TencentAppSecret, callback=MoeWebsite+"/tencentcallback")
-    
-    return None
+
+    f = open('tx_rt', 'rb')
+    auth.request_token = pickle.loads(f.read())
+    f.close()
+    access_token = auth.get_access_token(verifier)
+
+    TencentData = WeiboAuth(access_token=access_token.key, access_token_secret=access_token.secret, source="tencent", expires_in=13000000)
+    TencentData.save()
+    return HttpResponse("auth info saved")
 
 
 def clean_auth(request):
@@ -115,35 +127,55 @@ def sendToSina(client, newTweet):
     short_url = short_link["urls"][0]["url_short"]
     text = newTweet['text'] + " " + short_url
     if newTweet["img"]:
-        f = open("tmp.jpg", "wb")
-        f.write(newTweet["img"])
-        f.close()
-        f = open("tmp.jpg")
-        client.statuses.upload.post(status=text, pic=f)
-        f.close()
+        fpic = open('tmp.jpg', 'rb')
+        client.statuses.upload.post(status=text, pic=fpic)
+        fpic.close()
     else:
         client.statuses.update.post(status=text)
 
 
+def sendToTencent(api, newTweet):
+    text = newTweet['text'] + " " + newTweet['link']
+    if newTweet['img']:
+        fpic = open('tmp.jpg', 'rb')
+        api.tweet.addpic(fpic, text, clientip='127.0.0.1')
+        fpic.close()
+    else:
+        api.tweet.add(text, clientip='127.0.0.1')
+
+
 def send(requset):
+    newTweet = getNewTweet()
+    if not newTweet:
+        return HttpResponse('no new tweet send!')
+
+    fpic = None
+    if newTweet['img']:
+        fpic = open('tmp.jpg', 'wb')
+        fpic.write(newTweet['img'])
+        fpic.close()
+
+    # get sina api
     sina_client = weibo.APIClient(SinaAppKey, SinaAppSecret, MoeWebsite+"/callback")
     try:
         sinaData = WeiboAuth.objects.get(source="sina")
     except:
-        return HttpResponse('no valid auth info found, please login first')
+        return HttpResponse('no valid auth info for sina found, please login first')
 
     sina_client.set_access_token(sinaData.access_token, sinaData.expires_in)
 
     # get tencent api here
-
-    newTweet = getNewTweet()
-
+    auth = qqweibo.OAuthHandler(TencentAppKey, TencentAppSecret, callback=MoeWebsite+'/tencentcallback')
     try:
-        sendToSina(sina_client, newTweet)
-        # sendToTencent(tencent_client, newTweet)
-        return HttpResponse('send succ!')
+        TencentData = WeiboAuth.objects.get(source="tencent")
     except:
-        return HttpResponse('no new tweet send!')
+        return HttpResponse('no valid auth info for tencent found, please login first')
+    auth.setToken(TencentData.access_token, TencentData.access_token_secret)
+    t_api = qqweibo.API(auth, parser=qqweibo.ModelParser())
+
+    sendToSina(sina_client, newTweet)
+    sendToTencent(t_api, newTweet)
+    return HttpResponse('send succ!')
 
 
 def index(requset):
