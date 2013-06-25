@@ -145,12 +145,25 @@ LOGGING = {
             'level': 'ERROR',
             'filters': ['require_debug_false'],
             'class': 'django.utils.log.AdminEmailHandler'
+        },
+        'filelog': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': '/'.join([os.getcwd(), 'MoePad.log']),
+            'maxBytes': 1024*1024*5,
+            'backupCount': 5,
+            'formatter': '%(asctime)s %(levelname)s %(module)s.%(funcName)s Line:%(lineno)d %(message)s',
         }
     },
     'loggers': {
         'django.request': {
             'handlers': ['mail_admins'],
             'level': 'ERROR',
+            'propagate': True,
+        },
+        'moepad': {
+            'handlers': ['filelog'],
+            'level': 'INFO',
             'propagate': True,
         },
     }
