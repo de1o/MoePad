@@ -22,7 +22,7 @@ if not MoeWebsite.startswith("http"):
 
 
 def authSina(code):
-    client = weibo.APIClient(SinaAppKey, SinaAppSecret, MoeWebsite+"/callback")
+    client = weibo.APIClient(SinaAppKey, SinaAppSecret, MoeWebsite+"/sinacallback")
     r = client.request_access_token(code)
 
     sinaData = WeiboAuth(access_token=r.access_token, expires_in=r.expires_in, source="sina")
@@ -31,7 +31,7 @@ def authSina(code):
 
 
 def authSinaUrl():
-    client = weibo.APIClient(SinaAppKey, SinaAppSecret, MoeWebsite+"/callback")
+    client = weibo.APIClient(SinaAppKey, SinaAppSecret, MoeWebsite+"/sinacallback")
     return client.get_authorize_url()
 
 
@@ -156,7 +156,7 @@ def send(requset):
         fpic.close()
 
     # get sina api
-    sina_client = weibo.APIClient(SinaAppKey, SinaAppSecret, MoeWebsite+"/callback")
+    sina_client = weibo.APIClient(SinaAppKey, SinaAppSecret, MoeWebsite+"/sinacallback")
     try:
         sinaData = WeiboAuth.objects.get(source="sina")
     except:
