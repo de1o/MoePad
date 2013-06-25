@@ -13,6 +13,8 @@ import qqweibo
 import pickle
 import logging
 import traceback
+from urllib2 import HTTPError
+from weibo import APIError
 
 log = logging.getLogger('moepad')
 
@@ -126,8 +128,7 @@ def clean_cached_items(requset):
     return HttpResponse('ok')
 
 
-def sendToSina(newTweet):
-    # get sina api
+def sendToSina(newTweet, imgflag=True):
     try:
         sinaData = WeiboAuth.objects.get(source="sina")
     except:
@@ -140,7 +141,7 @@ def sendToSina(newTweet):
     short_link = client.short_url__shorten(url_long=newTweet['link'])
     short_url = short_link["urls"][0]["url_short"]
     text = newTweet['text'] + " " + short_url
-    if newTweet["img"]:
+    if newTweet["img"] and imgflag:
         fpic = open('tmp.jpg', 'rb')
         client.statuses.upload.post(status=text, pic=fpic)
         fpic.close()
@@ -193,6 +194,9 @@ def send(requset):
 
     try:
         sina_result = sendToSina(newTweet)
+    except (HTTPError, APIError) as e:
+        log.info(item_text + traceback.format_exc())
+        sina_result = sendToSina(newTweet, False)
     except:
         log.info(item_text + traceback.format_exc())
         sina_result = 'fail'
