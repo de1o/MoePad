@@ -12,6 +12,7 @@ import time
 import qqweibo
 import pickle
 import logging
+import traceback
 
 log = logging.getLogger('moepad')
 
@@ -127,14 +128,14 @@ def clean_cached_items(requset):
 
 def sendToSina(newTweet):
     # get sina api
-    client = weibo.APIClient(SinaAppKey, SinaAppSecret, MoeWebsite+"/sinacallback")
     try:
         sinaData = WeiboAuth.objects.get(source="sina")
     except:
-        log.info("no valid auth info for sina found")
-    return 'no valid auth info for sina'
+        log.info("[%s]no valid auth info for sina found" % newTweet['text'])
+        return 'no valid auth info for sina'
 
-    sina_client.set_access_token(sinaData.access_token, sinaData.expires_in)
+    client = weibo.APIClient(SinaAppKey, SinaAppSecret, MoeWebsite+"/sinacallback")
+    client.set_access_token(sinaData.access_token, sinaData.expires_in)
 
     short_link = client.short_url__shorten(url_long=newTweet['link'])
     short_url = short_link["urls"][0]["url_short"]
@@ -145,16 +146,16 @@ def sendToSina(newTweet):
         fpic.close()
     else:
         client.statuses.update.post(status=text)
-    log.info('sina update succ')
+    log.info('[%s]sina update succ' % newTweet['text'])
     return 'succ'
 
 
-def sendToTencent(api, newTweet):
+def sendToTencent(newTweet):
     auth = qqweibo.OAuthHandler(TencentAppKey, TencentAppSecret, callback=MoeWebsite+'/tencentcallback')
     try:
         TencentData = WeiboAuth.objects.get(source="tencent")
     except:
-        log.info('no valid auth info for tencent found')
+        log.info('[%s]no valid auth info for tencent found' % newTweet['text'])
         return 'no valid auth info for tencent'
 
     auth.setToken(TencentData.access_token, TencentData.access_token_secret)
@@ -167,7 +168,7 @@ def sendToTencent(api, newTweet):
         fpic.close()
     else:
         api.tweet.add(text, clientip='127.0.0.1')
-    log.info('tencent update succ')
+    log.info('[%s]tencent update succ' % newTweet['text'])
     return 'succ'
 
 
@@ -183,17 +184,20 @@ def send(requset):
         fpic.write(newTweet['img'])
         fpic.close()
 
+    item_text = "[%s]" % newTweet['text']
+    try:
+        tencent_result = sendToTencent(newTweet)
+    except Exception:
+        log.info(item_text + traceback.format_exc())
+        tencent_result = 'fail'
+
     try:
         sina_result = sendToSina(newTweet)
     except:
-        log.info('sina send fail')
+        log.info(item_text + traceback.format_exc())
         sina_result = 'fail'
-    try:
-        tencent_result = sendToTencent(newTweet)
-    except:
-        log.info('tencent send fail')
-        tencent_result = log.info('fail')
-    return HttpResponse('sina: %s, tencent %s', (sina_result, tencent_result))
+
+    return HttpResponse('sina: %s, tencent %s' % (sina_result, tencent_result))
 
 
 def index(requset):
