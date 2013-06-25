@@ -90,7 +90,7 @@ def getNewWikiItem():
     WikiItemData.save()
     img = getImage(feedToBeSend["link"])
     text = feedToBeSend['title']
-    link = "http://zh.moegirl.org/" + urllib.quote(feedToBeSend['title'])
+    link = "http://zh.moegirl.org/" + urllib.quote(feedToBeSend['title'].encode('utf-8'))
     return {'text': text, 'img': img, 'link': link}
 
 

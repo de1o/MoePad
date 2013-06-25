@@ -34,4 +34,6 @@ Installation and Configuration:
 
 测试环境要求MoePad/settings.py中DEBUG标识为`True`!
 
+sudo apt-get install libsqlite3-dev
+
 License: MIT
