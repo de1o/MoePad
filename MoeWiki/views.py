@@ -89,10 +89,7 @@ def getNewWikiItem():
     WikiItemData.save()
     img = getImage(feedToBeSend["link"])
     text = feedToBeSend['title']
-    try:
-        link = feedToBeSend['link'][:feedToBeSend['link'].index('&')]
-    except:
-        link = feedToBeSend['link']
+    link = "http://zh.moegirl.org/" + feedToBeSend['title']
     return {'text': text, 'img': img, 'link': link}
 
 
