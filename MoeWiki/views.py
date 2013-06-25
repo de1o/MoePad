@@ -7,6 +7,7 @@ from django.utils import timezone
 import datetime
 import urllib2
 import mpconfig
+import urllib
 
 feedurl = mpconfig.feedurl
 
@@ -89,7 +90,7 @@ def getNewWikiItem():
     WikiItemData.save()
     img = getImage(feedToBeSend["link"])
     text = feedToBeSend['title']
-    link = "http://zh.moegirl.org/" + feedToBeSend['title']
+    link = "http://zh.moegirl.org/" + urllib.quote(feedToBeSend['title'])
     return {'text': text, 'img': img, 'link': link}
 
 
