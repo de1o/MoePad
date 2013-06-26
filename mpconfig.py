@@ -11,3 +11,4 @@ mail_to = ""	 # 收件人
 smtpserver = ""		# smtp服务器
 mail_user = ""		# 发件人帐户名称
 mail_passwd = ""			# 发件人密码
+memcached_port = 12000		# memcached服务的端口

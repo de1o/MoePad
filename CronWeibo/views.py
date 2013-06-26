@@ -15,6 +15,11 @@ import logging
 import traceback
 from urllib2 import HTTPError
 from weibo import APIError
+import memcache
+
+# 
+mc_host = '127.0.0.1:%s' % mpconfig.memcached_port
+mc = memcache.Client([mc_host], debug=0)
 
 log = logging.getLogger('moepad')
 
@@ -31,7 +36,10 @@ def authSina(code):
     client = weibo.APIClient(SinaAppKey, SinaAppSecret, MoeWebsite+"/sinacallback")
     r = client.request_access_token(code)
 
-    sinaData = WeiboAuth(access_token=r.access_token, expires_in=r.expires_in, source="sina")
+    user_type = mc.get('user_type')
+    mc.set('user_type', 'invalid')
+    sinaData = WeiboAuth(access_token=r.access_token, expires_in=r.expires_in, source="sina",
+                         user_type=user_type)
     sinaData.save()
     return r.access_token, r.expires_in
 
@@ -66,7 +74,10 @@ def tencentcallback(request):
     f.close()
     access_token = auth.get_access_token(verifier)
 
-    TencentData = WeiboAuth(access_token=access_token.key, access_token_secret=access_token.secret, source="tencent", expires_in=13000000)
+    user_type = mc.get('user_type')
+    mc.set('user_type', 'invalid')
+    TencentData = WeiboAuth(access_token=access_token.key, access_token_secret=access_token.secret,
+                            source="tencent", expires_in=13000000, user_type=user_type)
     TencentData.save()
     return HttpResponse("auth info saved")
 
@@ -76,11 +87,26 @@ def clean_auth(request):
     return HttpResponse("auth info has been cleaned")
 
 
-def loginSina(request):
+def save_usertype(user_type):
+    if user_type in ['original', 'retweet']:
+        mc.set('user_type', user_type)
+        return None
+    else:
+        log.info("invalid user_type")
+        return HttpResponse("invalid user_type")
+
+
+def loginSina(request, user_type):
+    result = save_usertype(user_type)
+    if result:
+        return result
     return redirect(authSinaUrl())
 
 
-def loginTencent(requset):
+def loginTencent(requset, user_type):
+    result = save_usertype(user_type)
+    if result:
+        return result
     return redirect(authTencentUrl())
 
 
@@ -130,7 +156,7 @@ def clean_cached_items(requset):
 
 def sendToSina(newTweet, imgflag=True):
     try:
-        sinaData = WeiboAuth.objects.get(source="sina")
+        sinaData = WeiboAuth.objects.get(source="sina", user_type='original')
     except:
         log.info("[%s]no valid auth info for sina found" % newTweet['text'])
         return 'no valid auth info for sina'
@@ -154,7 +180,7 @@ def sendToSina(newTweet, imgflag=True):
 def sendToTencent(newTweet):
     auth = qqweibo.OAuthHandler(TencentAppKey, TencentAppSecret, callback=MoeWebsite+'/tencentcallback')
     try:
-        TencentData = WeiboAuth.objects.get(source="tencent")
+        TencentData = WeiboAuth.objects.get(source="tencent", user_type='original')
     except:
         log.info('[%s]no valid auth info for tencent found' % newTweet['text'])
         return 'no valid auth info for tencent'
