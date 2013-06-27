@@ -132,11 +132,13 @@ def send(requset):
 def SinaRetweet():
     tid = getNewSinaTid()
     if not tid:
+        log.info("no new tweets for sina to retweet")
         return HttpResponse("no new tweets for sina to retweet")
     client = getWeiboAuthedApi(source='sina', user_type='retweet')
     client.statuses.repost.post(id=int(tid))
     retweetData = AlreadlyRetweeted(tid=tid, source='sina', date=timezone.now())
     retweetData.save()
+    log.info("Sina retweet succ %s" % tid)
     return HttpResponse("Sina retweet Succ")
 
 
