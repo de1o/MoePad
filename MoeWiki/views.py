@@ -1,15 +1,20 @@
 # -*- coding: utf-8 -*-
 import feedparser
-from MoeWiki.models import WikiItems
+from MoeWiki.models import WikiItems, AlreadlyRetweeted
 from Forbidden.models import ForbiddenWikiItems
+from Auth.models import WeiboAuth
 from BeautifulSoup import BeautifulSoup
 from django.utils import timezone
 import datetime
 import urllib2
 import mpconfig
 import urllib
+from Auth.views import getWeiboAuthedApi
+import traceback
+import logging
 
 feedurl = mpconfig.feedurl
+log = logging.getLogger('moepad')
 
 
 def parseFeed(feedurl):
@@ -96,3 +101,20 @@ def getNewWikiItem():
 
 def getNewTweet():
     return getNewWikiItem()
+
+
+def getNewSinaTid():
+    original_user = WeiboAuth.objects.get(source='sina', user_type='original')
+    uid = original_user.uid
+    client = getWeiboAuthedApi(source='sina', user_type='original')
+    r = client.statuses.user_timeline.ids.get(uid=uid)
+    newestId = r.statuses[0]  # string
+    try:
+        RecentSinaRetweets = [item.tid for item in AlreadlyRetweeted.objects.filter(source='sina') if item.was_add_recently()]
+    except:
+        log.info(traceback.format_exc())
+        return newestId
+
+    if newestId not in RecentSinaRetweets:
+        return newestId
+    return None

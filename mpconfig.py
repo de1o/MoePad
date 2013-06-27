@@ -1,4 +1,5 @@
 # -*- coding:utf-8 -*-
+import memcache
 
 SinaAppKey = ""  # 新浪的appkey
 SinaAppSecret = ""  # 新浪的密钥
@@ -11,4 +12,4 @@ mail_to = ""	 # 收件人
 smtpserver = ""		# smtp服务器
 mail_user = ""		# 发件人帐户名称
 mail_passwd = ""			# 发件人密码
-memcached_port = 12000		# memcached服务的端口
+mc = memcache.Client(['127.0.0.1:12000'], debug=0)

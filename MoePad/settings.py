@@ -125,6 +125,7 @@ INSTALLED_APPS = (
     'CronWeibo',
     'MoeWiki',
     'Forbidden',
+    'Auth',
 )
 
 # A sample logging configuration. The only tangible logging
