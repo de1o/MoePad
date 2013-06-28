@@ -66,19 +66,19 @@ def sendToSina(newTweet, imgflag=True):
     try:
         client = getWeiboAuthedApi(source='sina', user_type='original')
     except:
-        return 'no valid auth info for sina'
+        return 'no valid auth info for sina', None
 
     short_link = client.short_url__shorten(url_long=newTweet['link'])
     short_url = short_link["urls"][0]["url_short"]
     text = newTweet['text'] + " " + short_url
     if newTweet["img"] and imgflag:
         fpic = open('tmp.jpg', 'rb')
-        client.statuses.upload.post(status=text, pic=fpic)
+        r = client.statuses.upload.post(status=text, pic=fpic)
         fpic.close()
     else:
-        client.statuses.update.post(status=text)
+        r = client.statuses.update.post(status=text)
     log.info('[%s]sina update succ' % newTweet['text'])
-    return 'succ'
+    return 'succ', r.idstr
 
 
 def sendToTencent(newTweet):
@@ -118,28 +118,39 @@ def send(requset):
         tencent_result = 'fail'
 
     try:
-        sina_result = sendToSina(newTweet)
+        sina_result, stid = sendToSina(newTweet)
+        # retweet proc
+        if stid:
+            SinaRetweet(stid)
     except (HTTPError, APIError) as e:
         log.info(item_text + traceback.format_exc())
-        sina_result = sendToSina(newTweet, False)
+        sina_result, stid = sendToSina(newTweet, False)
+        if stid:
+            SinaRetweet(stid)
     except:
         log.info(item_text + traceback.format_exc())
         sina_result = 'fail'
 
-    return HttpResponse('sina: %s, tencent %s' % (sina_result, tencent_result))
+    return HttpResponse('sina: %s %s, tencent %s' % (sina_result, stid, tencent_result))
 
 
-def SinaRetweet():
-    tid = getNewSinaTid()
+def SinaRetweet(tid=None):
     if not tid:
-        log.info("no new tweets for sina to retweet")
-        return HttpResponse("no new tweets for sina to retweet")
+        tid_provided = False
+        tid = getNewSinaTid()
+        if not tid:
+            log.info("no new tweets for sina to retweet")
+            return HttpResponse("no new tweets for sina to retweet")
+    else:
+        tid_provided = True
     client = getWeiboAuthedApi(source='sina', user_type='retweet')
     client.statuses.repost.post(id=int(tid))
     retweetData = AlreadlyRetweeted(tid=tid, source='sina', date=timezone.now())
     retweetData.save()
     log.info("Sina retweet succ %s" % tid)
-    return HttpResponse("Sina retweet Succ")
+    if not tid_provided:
+        return HttpResponse("Sina retweet Succ")
+    return None
 
 
 def TencentRetweet():
