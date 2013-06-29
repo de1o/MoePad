@@ -12,4 +12,4 @@ mail_to = ""	 # 收件人
 smtpserver = ""		# smtp服务器
 mail_user = ""		# 发件人帐户名称
 mail_passwd = ""			# 发件人密码
-mc = memcache.Client(['127.0.0.1:12000'], debug=0)
+mc = memcache.Client(['127.0.0.1:11211'], debug=0)

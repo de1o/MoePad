@@ -1,0 +1,5 @@
+Django==1.5.1
+APScheduler==2.1.0
+BeautifulSoup==3.2.1
+pysqlite==2.6.3
+python-memcached==1.53
