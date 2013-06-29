@@ -26,16 +26,23 @@ def mystrptime(str):
     return datetime.datetime.strptime(str, "%Y-%m-%dT%H:%M:%SZ")
 
 
+def checkIfNewItemInForbbidden(newItem):
+    forbiddenItems = [item.title for item in ForbiddenWikiItems.objects.all()]
+    for forbiddenItem in forbiddenItems:
+        if forbiddenItem in newItem:
+            return True
+    return False
+
+
 def findNewestItem(newFeeds):
     recentItems = [item.title for item in WikiItems.objects.all() if item.was_add_recently()]
-    forbiddenItems = [item.title for item in ForbiddenWikiItems.objects.all()]
     # remove tzinfo to convert into tz naive time
     recent_time_limit = (timezone.now().astimezone(timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12))
     newFeeds = [feed for feed in newFeeds if (mystrptime(feed['date']) >= recent_time_limit)]
     if not recentItems:
         return newFeeds[0]
     for newItem in newFeeds:
-        if newItem['title'] in forbiddenItems:
+        if checkIfNewItemInForbbidden(newItem['title']):
             continue
         if newItem['title'] in recentItems:
             continue

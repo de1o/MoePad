@@ -4,4 +4,5 @@ python:
 install: "pip install -r requirements.txt --use-mirrors"
 services:
   - memcached
-script: python manage.py test
+script:
+  python manage.py test
