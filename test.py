@@ -1,3 +1,3 @@
 import mpconfig
 
-mpconfig.set("foo", "bar")
+mpconfig.mc.set("foo", "bar")
