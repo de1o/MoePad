@@ -1,15 +1,15 @@
 # -*- coding:utf-8 -*-
 import memcache
 
-SinaAppKey = ""  # æ–°æµªçš„appkey
-SinaAppSecret = ""  # æ–°æµªçš„å¯†é’¥
+SinaAppKey = "255208104"  # ĞÂÀËµÄappkey
+SinaAppSecret = "c146e4d5772bf6a3363d9c804ed2c126"  # ĞÂÀËµÄÃÜÔ¿
 TencentAppKey = ""
 TencentAppSecret = ""
-MoeWebsite = ""  # vpsæœåŠ¡å™¨çš„åŸŸåï¼ˆåœ¨æ–°æµªå’Œè…¾è®¯çš„åå°å¡«çš„callbackä¹Ÿåº”è¯¥æ˜¯è¿™ä¸ªï¼‰+è¿è¡Œdjangoæ—¶æŒ‡å®šçš„ç«¯å£å·ï¼Œå¦‚æœç”¨80ç«¯å£ç«¯å£å·å¯ä»¥çœç•¥ï¼Œæ³¨æ„åŠ ä¸Šhttp://å‰ç¼€
+MoeWebsite = "http://local.pythonik.com:8000"  # vps·şÎñÆ÷µÄÓòÃû£¨ÔÚĞÂÀËºÍÌÚÑ¶µÄºóÌ¨ÌîµÄcallbackÒ²Ó¦¸ÃÊÇÕâ¸ö£©+ÔËĞĞdjangoÊ±Ö¸¶¨µÄ¶Ë¿ÚºÅ£¬Èç¹ûÓÃ80¶Ë¿Ú¶Ë¿ÚºÅ¿ÉÒÔÊ¡ÂÔ£¬×¢Òâ¼ÓÉÏhttp://Ç°×º
 feedurl = "http://zh.moegirl.org/index.php?title=Special:%E6%9C%80%E8%BF%91%E6%9B%B4%E6%94%B9&feed=atom&namespace=0"
-mail_from = ""  # ç”¨æ¥å‘é€æé†’é‡æ–°æˆæƒå¸å·çš„é‚®ä»¶ç›¸å…³ å‘ä»¶äºº
-mail_to = ""	 # æ”¶ä»¶äºº
-smtpserver = ""		# smtpæœåŠ¡å™¨
-mail_user = ""		# å‘ä»¶äººå¸æˆ·åç§°
-mail_passwd = ""			# å‘ä»¶äººå¯†ç 
+mail_from = ""  # ÓÃÀ´·¢ËÍÌáĞÑÖØĞÂÊÚÈ¨ÕÊºÅµÄÓÊ¼şÏà¹Ø ·¢¼şÈË
+mail_to = ""	 # ÊÕ¼şÈË
+smtpserver = ""		# smtp·şÎñÆ÷
+mail_user = ""		# ·¢¼şÈËÕÊ»§Ãû³Æ
+mail_passwd = ""			# ·¢¼şÈËÃÜÂë
 mc = memcache.Client(['127.0.0.1:11211'], debug=0)
