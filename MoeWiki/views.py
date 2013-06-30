@@ -103,7 +103,14 @@ def getNewWikiItem():
     img = getImage(feedToBeSend["link"])
     text = feedToBeSend['title']
     link = "http://zh.moegirl.org/" + urllib.quote(feedToBeSend['title'].encode('utf-8'))
-    return {'text': text, 'img': img, 'link': link}
+    if img:
+        fpic = open("tmp.jpg", 'wb')
+        fpic.write(img)
+        fpic.close()
+        img_name = 'tmp.jpg'
+    else:
+        img_name = None
+    return {'text': text, 'img': img_name, 'link': link}
 
 
 def getNewTweet():
