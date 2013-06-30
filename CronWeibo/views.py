@@ -19,6 +19,10 @@ from django.utils import timezone
 log = logging.getLogger('moepad')
 
 
+def logTraceInfo(prefix):
+    log.info(("[%s]" % prefix) + traceback.format_exc())
+
+
 def save_usertype(user_type):
     if user_type in ['original', 'retweet']:
         mc.set('user_type', user_type)
@@ -44,7 +48,8 @@ def loginTencent(requset, user_type):
 
 
 def send_reauth_mail(requset):
-    mailbody = 'hello, please reauthorize account. sina click %s ,tencent click %s' % (MoeWebsite + '/re_auth_sina', MoeWebsite + '/re_auth_tencent')
+    mailbody = 'hello, please reauthorize account. sina click %s ,tencent click %s' % (MoeWebsite + '/re_auth_sina',
+                                                                                       MoeWebsite + '/re_auth_tencent')
     mail_from = mpconfig.mail_from
     mail_to = mpconfig.mail_to
     msg = MIMEText(mailbody)
@@ -62,23 +67,40 @@ def send_reauth_mail(requset):
     return HttpResponse('ok')
 
 
-def sendToSina(newTweet, imgflag=True):
+def sendToSina(newTweet):
     try:
         client = getWeiboAuthedApi(source='sina', user_type='original')
     except:
-        return 'no valid auth info for sina', None
+        logTraceInfo("no valid auth info for sina")
+        return None
 
-    short_link = client.short_url__shorten(url_long=newTweet['link'])
+    try:
+        short_link = client.short_url__shorten(url_long=newTweet['link'])
+    except:
+        logTraceInfo(newTweet['text'])
+        return None
+
     short_url = short_link["urls"][0]["url_short"]
     text = newTweet['text'] + " " + short_url
-    if newTweet["img"] and imgflag:
-        fpic = open('tmp.jpg', 'rb')
-        r = client.statuses.upload.post(status=text, pic=fpic)
-        fpic.close()
-    else:
-        r = client.statuses.update.post(status=text)
+    try:
+        if newTweet["img"]:
+            fpic = open('tmp.jpg', 'rb')
+            r = client.statuses.upload.post(status=text, pic=fpic)
+            fpic.close()
+        else:
+            r = client.statuses.update.post(status=text)
+    except (HTTPError, APIError) as e:
+        try:
+            logTraceInfo(newTweet['text'])
+            r = client.statuses.update.post(status=text)
+        except:
+            logTraceInfo(newTweet['text'])
+            return None
+    except:
+        logTraceInfo(newTweet['text'])
+        return None
     log.info('[%s]sina update succ' % newTweet['text'])
-    return 'succ', r.idstr
+    return r
 
 
 def sendToTencent(newTweet):
@@ -88,12 +110,16 @@ def sendToTencent(newTweet):
         return 'no valid auth info for tencent'
 
     text = newTweet['text'] + " " + newTweet['link']
-    if newTweet['img']:
-        fpic = open('tmp.jpg', 'rb')
-        api.tweet.addpic(fpic, text, clientip='127.0.0.1')
-        fpic.close()
-    else:
-        api.tweet.add(text, clientip='127.0.0.1')
+    try:
+        if newTweet['img']:
+            fpic = open('tmp.jpg', 'rb')
+            api.tweet.addpic(fpic, text, clientip='127.0.0.1')
+            fpic.close()
+        else:
+            api.tweet.add(text, clientip='127.0.0.1')
+    except:
+        log.info(("[%s]" % newTweet['text']) + traceback.format_exc())
+        return 'fail'
     log.info('[%s]tencent update succ' % newTweet['text'])
     return 'succ'
 
@@ -104,67 +130,40 @@ def send(requset):
         log.info('no new wiki item yet')
         return HttpResponse('no new tweet send!')
 
-    fpic = None
-    if newTweet['img']:
-        fpic = open('tmp.jpg', 'wb')
-        fpic.write(newTweet['img'])
-        fpic.close()
+    rt = sendToTencent(newTweet)
+    rs = sendToSina(newTweet)
 
-    item_text = "[%s]" % newTweet['text']
-    try:
-        tencent_result = sendToTencent(newTweet)
-    except Exception:
-        log.info(item_text + traceback.format_exc())
-        tencent_result = 'fail'
+    return HttpResponse('sina: %s %s, tencent %s' % ('succ' if rs else 'fail', rs.idstr if rs else 'None', rt))
 
+
+def sendThenRetweet(requset):
+    newTweet = getNewTweet()
+    if not newTweet:
+        log.info('no new wiki item yet')
+        return HttpResponse('no new tweet send!')
+
+    result_t = sendToTencent(newTweet)
+    result_s = sendToSina(newTweet)
+
+    if result_s:
+        rt_result_s = SinaRetweet(tid=result_s.idstr)
+
+    return HttpResponse('sina send %s retweet %s, tencent %s' % ('succ' if result_s else 'fail', 'succ' if rt_result_s else 'fail', result_t))
+
+
+def SinaRetweet(tid):
     try:
-        sina_result, stid = sendToSina(newTweet)
-        # retweet proc
-        if stid:
-            SinaRetweet(stid)
-    except (HTTPError, APIError) as e:
-        log.info(item_text + traceback.format_exc())
-        sina_result, stid = sendToSina(newTweet, False)
-        if stid:
-            SinaRetweet(stid)
+        client = getWeiboAuthedApi(source='sina', user_type='retweet')
     except:
-        log.info(item_text + traceback.format_exc())
-        sina_result = 'fail'
-
-    return HttpResponse('sina: %s %s, tencent %s' % (sina_result, stid, tencent_result))
-
-
-def SinaRetweet(tid=None):
-    if not tid:
-        tid_provided = False
-        tid = getNewSinaTid()
-        if not tid:
-            log.info("no new tweets for sina to retweet")
-            return HttpResponse("no new tweets for sina to retweet")
-    else:
-        tid_provided = True
-    client = getWeiboAuthedApi(source='sina', user_type='retweet')
-    client.statuses.repost.post(id=int(tid))
-    retweetData = AlreadlyRetweeted(tid=tid, source='sina', date=timezone.now())
-    retweetData.save()
+        logTraceInfo(tid)
+        return None
+    try:
+        r = client.statuses.repost.post(id=int(tid), status="萌百更新")
+    except:
+        logTraceInfo(tid)
+        return None
     log.info("Sina retweet succ %s" % tid)
-    if not tid_provided:
-        return HttpResponse("Sina retweet Succ")
-    return None
-
-
-def TencentRetweet():
-    return HttpResponse("Tencent retweet Succ")
-
-
-def retweet(requset, source):
-    if source == 'sina':
-        return SinaRetweet()
-    elif source == 'tencent':
-        return TencentRetweet()
-    else:
-        log.info('invalid retweet request source %s' % source)
-        return HttpResponse('fail')
+    return r
 
 
 def index(requset):
