@@ -21,7 +21,7 @@
 		    error_log /var/log/nginx/moepad.error.log;
 		
 		    location /static/ { # STATIC_URL for admin
-		        alias /usr/local/lib/python2.7/site-packages/django/contrib/admin/static/
+		        alias /usr/local/lib/python2.7/site-packages/django/contrib/admin/static/;
 		        expires 30d;
 		    }
 		
