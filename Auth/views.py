@@ -1,6 +1,4 @@
 # Create your views here.
-import mpconfig
-from mpconfig import mc
 import logging
 import weibo
 from Auth.models import WeiboAuth
@@ -8,35 +6,39 @@ import qqweibo
 import pickle
 from django.http import HttpResponse
 from django.shortcuts import *
-from MoeWiki.models import WikiItems
+from MoeWiki.models import WikiItems, MoePadConfig
+from django.contrib.auth.decorators import login_required
 
-SinaAppKey = mpconfig.SinaAppKey
-SinaAppSecret = mpconfig.SinaAppSecret
-TencentAppKey = mpconfig.TencentAppKey
-TencentAppSecret = mpconfig.TencentAppSecret
-MoeWebsite = mpconfig.MoeWebsite
+def getMoeWebSite():
+    # a = MoePadConfig.objects.all()[0]
+    return MoePadConfig.objects.all()[0].MoeWebsite
+
+MoeWebsite = getMoeWebSite()
+
 if not MoeWebsite.startswith("http"):
     raise Exception
 
-
 log = logging.getLogger('moepad')
-
+def getSinaAppInfo():
+    info = MoePadConfig.objects.all()[0]
+    return info.SinaAppKey, info.sinaAppSecret
 
 def authSina(code):
+    SinaAppKey, SinaAppSecret = getSinaAppInfo()
+
     client = weibo.APIClient(SinaAppKey, SinaAppSecret, MoeWebsite+"/sinacallback")
     r = client.request_access_token(code)
 
     client.set_access_token(r.access_token, r.expires_in)
     ruid = client.account.get_uid.get()
-    user_type = mc.get('user_type')
-    mc.set('user_type', 'invalid')
     sinaData = WeiboAuth(access_token=r.access_token, expires_in=r.expires_in, source="sina",
-                         user_type=user_type, uid=ruid.uid)
+                         user_type='original', uid=ruid.uid)
     sinaData.save()
     return r.access_token, r.expires_in
 
 
 def authSinaUrl():
+    SinaAppKey, SinaAppSecret = getSinaAppInfo()
     client = weibo.APIClient(SinaAppKey, SinaAppSecret, MoeWebsite+"/sinacallback")
     return client.get_authorize_url()
 
@@ -49,13 +51,14 @@ def authTencentUrl():
     f.close()
     return url
 
-
+@login_required
 def sinacallback(request):
     code = request.GET['code']
     access_token, expires_in = authSina(code)
-    return HttpResponse("auth info saved")
+    c = {"information": "auth info saved"}
+    return render_to_response("info.html", c)
 
-
+@login_required
 def tencentcallback(request):
     verifier = request.GET['oauth_verifier']
     auth = qqweibo.OAuthHandler(TencentAppKey, TencentAppSecret, callback=MoeWebsite+"/tencentcallback")
@@ -65,19 +68,21 @@ def tencentcallback(request):
     f.close()
     access_token = auth.get_access_token(verifier)
 
-    user_type = mc.get('user_type')
-    mc.set('user_type', 'invalid')
     TencentData = WeiboAuth(access_token=access_token.key, access_token_secret=access_token.secret,
                             source="tencent", expires_in=13000000, user_type=user_type)
     TencentData.save()
-    return HttpResponse("auth info saved")
 
+    c = {"information": "auth info saved"}
+    return render_to_response("info.html", c)
 
+@login_required
 def clean_auth(request):
     WeiboAuth.objects.all().delete()
-    return HttpResponse("auth info has been cleaned")
+    c = {"information": "auth info has been cleaned"}
+    # print 'hello'
+    return render_to_response("info.html", c)
 
-
+@login_required
 def re_auth_sina(requset):
     try:
         WeiboAuth.objects.filter(source='sina').delete()
@@ -85,7 +90,7 @@ def re_auth_sina(requset):
         pass
     return redirect(authSinaUrl())
 
-
+@login_required
 def re_auth_tencent(requset):
     try:
         WeiboAuth.objects.filter(source='tencent').delete()
@@ -93,14 +98,15 @@ def re_auth_tencent(requset):
         pass
     return redirect(authTencentUrl())
 
-
+@login_required
 def clean_cached_items(requset):
     cachedItems = WikiItems.objects.all()
     for item in cachedItems:
         if not item.was_add_recently():
             item.delete()
 
-    return HttpResponse('ok')
+    c = {"information": "ok"}
+    return render_to_response("info.html", c)
 
 
 def getWeiboAuthedApi(source, user_type):
@@ -111,6 +117,7 @@ def getWeiboAuthedApi(source, user_type):
         raise e
 
     if source == 'sina':
+        SinaAppKey, SinaAppSecret = getSinaAppInfo()
         client = weibo.APIClient(SinaAppKey, SinaAppSecret, MoeWebsite+"/sinacallback")
         client.set_access_token(weiboData.access_token, weiboData.expires_in)
 
@@ -122,3 +129,8 @@ def getWeiboAuthedApi(source, user_type):
         auth.setToken(weiboData.access_token, weiboData.access_token_secret)
         api = qqweibo.API(auth, parser=qqweibo.ModelParser())
         return api
+
+
+@login_required
+def loginSina(request, user_type):
+    return redirect(authSinaUrl())

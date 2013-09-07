@@ -1,134 +1,115 @@
 # -*- coding: utf-8 -*-
 import feedparser
-from MoeWiki.models import WikiItems, AlreadlyRetweeted
+from MoeWiki.models import WikiItems, AlreadlyRetweeted, MoePadConfig, RecentUpdateItems
 from Forbidden.models import ForbiddenWikiItems
 from Auth.models import WeiboAuth
 from BeautifulSoup import BeautifulSoup
 from django.utils import timezone
 import datetime
 import urllib2
-import mpconfig
 import urllib
 from Auth.views import getWeiboAuthedApi
 import traceback
 import logging
 
-feedurl = mpconfig.feedurl
+from django.http import HttpResponse, Http404
+from django.shortcuts import *
+from django.contrib.auth.decorators import login_required
+from django import forms
+from django.contrib.auth.forms import UserCreationForm
+from django.core.context_processors import csrf
+from django import forms
+
 log = logging.getLogger('moepad')
-
-
-def parseFeed(feedurl):
-    feeds = feedparser.parse(feedurl)
-    return feeds
-
 
 def mystrptime(str):
     return datetime.datetime.strptime(str, "%Y-%m-%dT%H:%M:%SZ")
 
 
-def checkIfNewItemInForbbidden(newItem):
-    forbiddenItems = [item.title for item in ForbiddenWikiItems.objects.all()]
-    for forbiddenItem in forbiddenItems:
-        if forbiddenItem in newItem:
-            return True
-    return False
-
-
-def findNewestItem(newFeeds):
-    recentItems = [item.title for item in WikiItems.objects.all() if item.was_add_recently()]
-    # remove tzinfo to convert into tz naive time
-    recent_time_limit = (timezone.now().astimezone(timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=12))
-    newFeeds = [feed for feed in newFeeds if (mystrptime(feed['date']) >= recent_time_limit)]
-    if not recentItems:
-        return newFeeds[0]
-    for newItem in newFeeds:
-        if checkIfNewItemInForbbidden(newItem['title']):
-            continue
-        if newItem['title'] in recentItems:
-            continue
-        else:
-            return newItem
-    return None
-
-
-def getImage(link):
-    try:
-        c = urllib2.urlopen(link)
-    except:
-        return None
-    f = c.read()
-    c.close()
-
-    soup = BeautifulSoup(f)
-    content = soup.find("div", {"id": "bodyContent"})
-    img = None
-    for tag in content.findAll('img'):
-        try:
-            if ((int(tag["width"]) < 100) or (int(tag["width"]) > 800)):
-                continue
-        except:
-            continue
-        try:
-            if ((int(tag["height"]) < 100) or (int(tag["height"]) > 800)):
-                continue
-        except:
-            continue
-        img = tag
-        break
-
-    image_content = None
-    if img:
-        src = str(img["src"])
-        if src.startswith("//1-ps.google"):
-            src = img["pagespeed_lazy_src"]
-        elif src.startswith("//"):
-            src = "http:" + src
-
-        image_remote = urllib2.urlopen(src)
-        if image_remote.getcode() != 200:
-            return None
-        image_content = image_remote.read()
-        # resize img ?
-    return image_content
-
-
-def getNewWikiItem():
-    newFeeds = parseFeed(feedurl)["items"]
-    feedToBeSend = findNewestItem(newFeeds)
-    if not feedToBeSend:
-        return None
-
-    WikiItemData = WikiItems(title=feedToBeSend["title"], link=feedToBeSend["link"], date=feedToBeSend["date"])
-    WikiItemData.save()
-    img = getImage(feedToBeSend["link"])
-    text = feedToBeSend['title']
-    link = "http://zh.moegirl.org/" + urllib.quote(feedToBeSend['title'].encode('utf-8'))
-    if img:
-        fpic = open("tmp.jpg", 'wb')
-        fpic.write(img)
-        fpic.close()
-        img_name = 'tmp.jpg'
+def register(request):
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            form.save()  # new user created
+            return HttpResponseRedirect("/accounts/login/")
     else:
-        img_name = None
-    return {'text': text, 'img': img_name, 'link': link}
+        form = UserCreationForm()
+
+    # c = RequestContext(request, {'form': form})
+    # temp = get_template("registration/register.html")
+    # return HttpResponse(temp.render(c))
+    return render_to_response("registration/register.html", 
+        {'form': form},
+        context_instance=RequestContext(request))
 
 
-def getNewTweet():
-    return getNewWikiItem()
+@login_required
+def index(request):
+    if request.method == 'POST':
+        # TODO validate data posted
+        return configCommitProc(request)
+    else:
+        return renderIndex(request)
+
+def renderIndex(request):
+    field_list = generateFieldListFromConfig()
+    c = RequestContext(request, {"field_list": field_list})
+    return render_to_response('index.html', c)
 
 
-def getNewSinaTid():
-    original_user = WeiboAuth.objects.get(source='sina', user_type='original')
-    uid = original_user.uid
-    client = getWeiboAuthedApi(source='sina', user_type='original')
-    r = client.statuses.user_timeline.ids.get(uid=uid)
-    newestId = r.statuses[0]  # string
-    try:
-        RecentSinaRetweets = [item.tid for item in AlreadlyRetweeted.objects.filter(source='sina') if item.was_add_recently()]
-    except:
-        log.info(traceback.format_exc())
-        return newestId
+def configCommitProc(request):
+    print request.POST, '----------------'
+    error_list = []
+    print request.POST.get('moesite'), '--------------'
+    if request.POST.get('moesite') == "":
+        error_list.append("请输入更新程序所在域名地址")
 
-    if newestId not in RecentSinaRetweets:
-        return newestId
-    return None
+    if request.POST.get('sameiteminterval') == "":
+        error_list.append("请输入条目刷出后禁止再次刷出的时长")
+
+    if error_list:
+        c = RequestContext(request, {"field_list": generateFieldListFromConfig(),
+                                "error_list": error_list})
+        return render_to_response("index.html", c)
+    configHandler = MoePadConfig.objects.all()
+    configHandler.update(
+        SinaAppKey=request.POST.get("sinaappkey"),
+        sinaAppSecret=request.POST.get("sinaappsecret"),
+        TencentAppKey=request.POST.get("tencentappkey"),
+        TencentAppSecret=request.POST.get("tencentappsecret"),
+        MoeWebsite=request.POST.get("moesite"),
+        sameItemInterval=request.POST.get("sameiteminterval")
+        )
+    field_list = generateFieldListFromConfig()
+    c = RequestContext(request, {"field_list": field_list})
+    return render_to_response('index.html', c)
+
+
+def generateFieldListFromConfig():
+    config = MoePadConfig.objects.all()[0]
+    field_list = []
+    field_list.append({"input_id": "sinaappkey", "field_name": "Sina App Key:", "value": config.SinaAppKey})
+    field_list.append({"input_id": "sinaappsecret", "field_name": "Sina App Secret:", "value": config.sinaAppSecret})
+    field_list.append({"input_id": "tencentappkey", "field_name": "Tencent App Key:", "value": config.TencentAppKey})
+    field_list.append({"input_id": "tencentappsecret", "field_name": "Tencent App Secret:", "value": config.TencentAppSecret})
+    field_list.append({"input_id": "moesite", "field_name": "MoePad程序所在域名*:", "value": config.MoeWebsite})
+    field_list.append({"input_id": "sameiteminterval", "field_name": "已刷出条目禁止时长(小时)*:", "value": config.sameItemInterval})
+    return field_list
+
+
+def verify(request):
+    if request.method == 'POST':
+        print request.POST
+        for key in request.POST.keys():
+            if 'on' in request.POST[key]:
+                RecentUpdateItems.objects.filter(title=key).update(itemState=RecentUpdateItems.VERIFIED)
+
+        return generateUnverifiedPage(request)
+    else:
+        return generateUnverifiedPage(request)
+
+def generateUnverifiedPage(request):
+    unverified_items_rec = RecentUpdateItems.objects.filter(itemState=RecentUpdateItems.VERIFYING_NEW)
+    unverified_items = [rec.title.encode('utf-8') for rec in unverified_items_rec]
+    c = RequestContext(request, {"unverified_items": unverified_items})
+    return render_to_response('verify.html', c)

@@ -13,6 +13,22 @@ from Auth import weibo
 from Forbidden.models import ForbiddenWikiItems
 import urllib2
 from BeautifulSoup import BeautifulSoup
+import logging
+import logging.handlers
+import traceback
+from Auth.weibo import APIError
+
+def loggerInit(logfile):
+    logger = logging.getLogger(logfile)
+    logger.setLevel(logging.DEBUG)
+    fh = logging.handlers.RotatingFileHandler(logfile, maxBytes=10*1024*1024, backupCount=2)
+    fh.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(message)s')
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+    return logger
+
+logger = loggerInit('sascript.log')
 
 
 def mystrptime(str):
@@ -56,207 +72,200 @@ def getImage(link):
             return None
         image_content = image_remote.read()
         with open("tmp.jpg", 'wb') as fpic:
-        	fpic.write(image_content)
-       	result = True
+            fpic.write(image_content)
+        result = True
         # resize img ?
     return result
 
 class MpConfig(object):
-	def __init__(self):
-		super(MpConfig, self).__init__()
-	
-	def getConfigFromDB(self):
-		self.config = MoePadConfig.objects.all()[0]
-		
+    def __init__(self):
+        super(MpConfig, self).__init__()
+    
+    def getConfigFromDB(self):
+        self.config = MoePadConfig.objects.all()[0]
+        
 
 class WeiboApi(object):
-	def __init__(self, appkey, appsecret, callback, token, expires_in):
-		super(WeiboApi, self).__init__()
-		self.client = weibo.APIClient(appkey, appsecret, callback)
-		self.client.set_access_token(token, expires_in)
-		print self.client, 'client'
+    def __init__(self, appkey, appsecret, callback, token, expires_in):
+        super(WeiboApi, self).__init__()
+        self.client = weibo.APIClient(appkey, appsecret, callback)
+        self.client.set_access_token(token, expires_in)
 
-	def send(self, text, url, img=None):
-		short_link = self.client.short_url__shorten(url_long=url)
-		shortUrl = short_link["urls"][0]["url_short"]
-		text = ' '.join([text, shortUrl])
+    def send(self, text, url, img=None):
+        short_link = self.client.short_url__shorten(url_long=url)
+        shortUrl = short_link["urls"][0]["url_short"]
+        text = ' '.join([text, shortUrl])
 
-		if img:
-			with open('tmp.jpg', 'rb') as fpic:
-				r = self.client.statuses.upload.post(status=text, pic=fpic)
-		else:
-			r = self.client.statuses.update.post(status=text)
+        if img:
+            with open('tmp.jpg', 'rb') as fpic:
+                r = self.client.statuses.upload.post(status=text, pic=fpic)
+        else:
+            r = self.client.statuses.update.post(status=text)
 
 
 class UpdateItems(object):
-	def __init__(self, config):
-		super(UpdateItems, self).__init__()
-		self.config = config
-		self.rch = []
-		self.ItemTobeSend = None
-		
-	def updateRoutine(self):
-	    self.delTooOldSentRecord()
-	    self.delTooOldAddedRecord()
-	    self.fetchNewItemGenerated(60)
-	    self.filterForbiddenItems()
-	    self.filterDuplicateItems()
-	    if not self.rch:
-	    	return None
-	    self.loadExistedItems()
-	    self.processNewItems()
+    def __init__(self, config):
+        super(UpdateItems, self).__init__()
+        self.config = config
+        self.rch = []
+        self.ItemTobeSend = None
+        
+    def updateRoutine(self):
+        try:
+            self.delTooOldSentRecord()
+            self.delTooOldAddedRecord()
+            self.fetchNewItemGenerated(20)
+            self.filterForbiddenItems()
+            self.filterDuplicateItems()
+            self.filterExistingItems()
+            self.StoreRecentChangedItems()
+        except:
+            logger.info(traceback.format_exc())
 
-	def delTooOldSentRecord(self):
-		self.delRecentRecordSpecifiedHourAgo(self.config.sameItemInterval)
 
-	def delTooOldAddedRecord(self):
-		self.delRecentRecordSpecifiedHourAgo(self.config.generalRetainTime)
+    def delTooOldSentRecord(self):
+        self.delRecentRecordSpecifiedHourAgo(self.config.sameItemInterval)
 
-	def delRecentRecordSpecifiedHourAgo(self, hours):
-		cutPoint = timezone.now() - datetime.timedelta(hours=hours)
-		RecentUpdateItems.objects.filter(sentTime__lt=cutPoint).delete()
+    def delTooOldAddedRecord(self):
+        self.delRecentRecordSpecifiedHourAgo(self.config.generalRetainTime)
 
-	def fetchNewItemGenerated(self, mins):
-		url_t = "http://zh.moegirl.org/api.php?format=json&action=query&list=recentchanges&rcstart=%s&rcend=%s&rcdir=newer&rcnamespace=0"
-		rcstart = calendar.timegm((timezone.now() - datetime.timedelta(minutes=mins)).utctimetuple())
-		rcend = calendar.timegm(timezone.now().utctimetuple())
-		url = url_t % (rcstart, rcend)
-		r = requests.get(url)
-		rjson = json.loads(r.text)
-		self.rch =  rjson['query']['recentchanges']
-		print self.rch, '-------', len(self.rch)
+    def delRecentRecordSpecifiedHourAgo(self, hours):
+        cutPoint = timezone.now() - datetime.timedelta(hours=hours)
+        RecentUpdateItems.objects.filter(sentTime__lt=cutPoint).delete()
 
-	def filterForbiddenItems(self):
-		self.forbiddenKeys = ForbiddenWikiItems.objects.all()
-		
-		cleanList = []
-		for item in self.rch:
-			print item['title']
-			if self.isItemContainsForbiddenKey(item['title']):
-				continue
-			else:
-				cleanList.append(item)
+    def fetchNewItemGenerated(self, mins):
+        url_t = "http://zh.moegirl.org/api.php?format=json&action=query&list=recentchanges&rcstart=%s&rcend=%s&rcdir=newer&rcnamespace=0"
+        rcstart = calendar.timegm((timezone.now() - datetime.timedelta(minutes=mins)).utctimetuple())
+        rcend = calendar.timegm(timezone.now().utctimetuple())
+        url = url_t % (rcstart, rcend)
+        r = requests.get(url)
+        rjson = json.loads(r.text)
+        self.rch =  rjson['query']['recentchanges']
 
-		self.rch = cleanList
-		print self.rch, 'after forbiddenKeys'
+    def filterForbiddenItems(self):
+        self.forbiddenKeys = ForbiddenWikiItems.objects.all()
+        
+        cleanList = []
+        for item in self.rch:
+            if self.isItemContainsForbiddenKey(item['title']):
+                continue
+            else:
+                cleanList.append(item)
 
-	def isItemContainsForbiddenKey(self, item):
-		for fword in self.forbiddenKeys:
-			if fword.title in item:
-				return True
+        self.rch = cleanList
 
-		return False
+    def isItemContainsForbiddenKey(self, item):
+        for fword in self.forbiddenKeys:
+            if fword.title in item:
+                return True
 
-	def filterDuplicateItems(self):
-		cleanList = []
-		titleList = []
-		for item in self.rch:
-			if item['title'] not in titleList:
-				cleanList.append(item)
-				titleList.append(item['title'])
+        return False
 
-		self.rch = cleanList
-		print self.rch, 'after filterDuplicateItems'
+    def filterDuplicateItems(self):
+        cleanList = []
+        titleList = []
+        for item in self.rch:
+            if item['title'] not in titleList:
+                cleanList.append(item)
+                titleList.append(item['title'])
 
-	def loadExistedItems(self):
-		self.rcUpdateItems = RecentUpdateItems.objects.all()
+        self.rch = cleanList
 
-	def processNewItems(self):
-		validNewItem = [item for item in self.rch if self.insertable(item)]
-		# print validNewItem
-		map(self.storeValidItem, validNewItem)
 
-	def insertable(self, item):
-		if item['type'] == 'new':
-			return True
+    def filterExistingItems(self):
+        self.loadExistedItems()
+        self.rch = [item for item in self.rch if self.insertable(item)]
 
-		if self.rcUpdateItems.filter(title=item['title']):
-			return False
+    def loadExistedItems(self):
+        self.rcUpdateItems = RecentUpdateItems.objects.all()
 
-		return True
+    def StoreRecentChangedItems(self):
+        map(self.storeValidItem, self.rch)
 
-	def storeValidItem(self, item):
-		if item['type'] == 'new':
-			itemState = RecentUpdateItems.VERIFYING_NEW
-		else:
-			itemState = RecentUpdateItems.EDITED
-		print 'save'
-		newItemRec = RecentUpdateItems(title=item['title'], itemState=itemState, changeTime=mystrptime(item['timestamp']))
-		newItemRec.save()
+    def insertable(self, item):
+        if self.rcUpdateItems.filter(title=item['title']):
+            return False
 
-	def sendRoutine(self):
-		self.loadExistedItems()
-		self.getItemTobeSend()
-		print self.ItemTobeSend
-		self.send()
+        return True
 
-	def getItemTobeSend(self):
-		try:
-			self.getVerifiedItem()
-			return None
-		except IndexError:
-			print 'No verified New Item'
+    def storeValidItem(self, item):
+        if item['type'] == 'new':
+            itemState = RecentUpdateItems.VERIFYING_NEW
+        else:
+            itemState = RecentUpdateItems.EDITED
+        print 'save'
+        newItemRec = RecentUpdateItems(title=item['title'], itemState=itemState, changeTime=mystrptime(item['timestamp']))
+        newItemRec.save()
 
-		try:
-			self.getEditedItem()
-		except IndexError:
-			print 'No Edited New Item'
-			return None
-		print self.ItemTobeSend
+    def sendRoutine(self):
+        try:
+            self.loadExistedItems()
+            self.getItemTobeSend()
+            print self.ItemTobeSend
+            self.send()
+        except APIError as e:
+            if 'expired_token' in e:
+                print "Token Expired"
+                # TODO send reauth mail
 
-	def getVerifiedItem(self):
-		verifiedItems = self.rcUpdateItems.filter(itemState=RecentUpdateItems.VERIFIED)
-		try:
-			self.ItemTobeSend = verifiedItems[0]
-		except IndexError:
-			pastDue = timezone.now() - datetime.timedelta(hours=24)
-			autoVerifiedAfterCreate = self.rcUpdateItems.filter(itemState=RecentUpdateItems.VERIFYING_NEW, changeTime__lt=pastDue)
-			self.ItemTobeSend = autoVerifiedAfterCreate[0]
+            logger.info(traceback.format_exc())
+        except:
+            logger.info(traceback.format_exc())
 
-	def getEditedItem(self):
-		editedItems = self.rcUpdateItems.filter(itemState=RecentUpdateItems.EDITED).order_by('-changeTime')
-		self.ItemTobeSend = editedItems[0]
+    def getItemTobeSend(self):
+        try:
+            self.getVerifiedItem()
+            return None
+        except IndexError:
+            print 'No verified New Item'
 
-	def send(self):
-		if not self.ItemTobeSend:
-			return None
+        try:
+            self.getEditedItem()
+        except IndexError:
+            print 'No Edited New Item'
+            return None
 
-		self.getWeiboApi()
+    def getVerifiedItem(self):
+        verifiedItems = self.rcUpdateItems.filter(itemState=RecentUpdateItems.VERIFIED)
+        try:
+            self.ItemTobeSend = verifiedItems[0]
+        except IndexError:
+            pastDue = timezone.now() - datetime.timedelta(hours=24)
+            autoVerifiedAfterCreate = self.rcUpdateItems.filter(itemState=RecentUpdateItems.VERIFYING_NEW, changeTime__lt=pastDue)
+            self.ItemTobeSend = autoVerifiedAfterCreate[0]
 
-		weiboTitle = self.ItemTobeSend.title
-		weiboLink = "http://zh.moegirl.org/" + urllib.quote(weiboTitle.encode('utf-8'))
+    def getEditedItem(self):
+        editedItems = self.rcUpdateItems.filter(itemState=RecentUpdateItems.EDITED).order_by('-changeTime')
+        self.ItemTobeSend = editedItems[0]
 
-		self.weiboApi.send(weiboTitle, weiboLink, getImage(weiboLink))
-		self.updateSentRecord()
+    def send(self):
+        if not self.ItemTobeSend:
+            return None
 
-	def updateSentRecord(self):
-		self.rcUpdateItems.filter(title=self.ItemTobeSend.title).update(itemState=RecentUpdateItems.SENT, sentTime=timezone.now())
+        self.getWeiboApi()
 
-	def getWeiboApi(self):
-		token = WeiboAuth.objects.get(source='sina', user_type='original')
-		self.weiboApi = WeiboApi(self.config.SinaAppKey,
-			self.config.sinaAppSecret,
-			self.config.MoeWebsite+'/sinacallback',
-			token.access_token,
-			token.expires_in)
+        weiboTitle = self.ItemTobeSend.title
+        weiboLink = "http://zh.moegirl.org/" + urllib.quote(weiboTitle.encode('utf-8'))
+
+        self.weiboApi.send(weiboTitle, weiboLink, getImage(weiboLink))
+        self.updateSentRecord()
+
+    def updateSentRecord(self):
+        self.rcUpdateItems.filter(title=self.ItemTobeSend.title).update(itemState=RecentUpdateItems.SENT, sentTime=timezone.now())
+
+    def getWeiboApi(self):
+        token = WeiboAuth.objects.get(source='sina', user_type='original')
+        self.weiboApi = WeiboApi(self.config.SinaAppKey,
+            self.config.sinaAppSecret,
+            self.config.MoeWebsite+'/sinacallback',
+            token.access_token,
+            token.expires_in)
 
 if __name__ == '__main__':
-	config = MpConfig()
-	config.getConfigFromDB()
-	update = UpdateItems(config.config)
-	# print timezone.now()
-	# update.fetchNewItemGenerated(60)
-	# update.fetchNewItemGenerated(30)
-	# update.loadExistedItems()
-	# print update.rcUpdateItems
-	# for item in update.rcUpdateItems:
-	# 	print item.changeTime
-	# a =  WikiItems.objects.all()
-	# print a.filter(title='testds')
-	# print [item['title'] for item in a]
-	# strtime = '2013-09-01T03:11:36Z'
-	# dt = mystrptime(strtime)
-	# print dt
-	# print dir(dt)
-	# update.updateRoutine()
-	update.sendRoutine()
+    config = MpConfig()
+    config.getConfigFromDB()
+    
+    update = UpdateItems(config.config)    
+
+    update.sendRoutine()
+    # update.updateRoutine()

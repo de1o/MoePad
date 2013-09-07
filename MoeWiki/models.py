@@ -1,7 +1,6 @@
 from django.db import models
 import datetime
 from django.utils import timezone
-from mpconfig import same_item_interval
 
 class WikiItems(models.Model):
     title = models.CharField(max_length=100)
@@ -12,7 +11,7 @@ class WikiItems(models.Model):
         return self.title
 
     def was_add_recently(self):
-        return self.date >= timezone.now() - datetime.timedelta(hours=same_item_interval)
+        return self.date >= timezone.now() - datetime.timedelta(hours=24)
 
 
 class AlreadlyRetweeted(models.Model):
