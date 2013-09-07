@@ -72,28 +72,54 @@ def configCommitProc(request):
                                 "error_list": error_list})
         return render_to_response("index.html", c)
     configHandler = MoePadConfig.objects.all()
-    configHandler.update(
-        SinaAppKey=request.POST.get("sinaappkey"),
-        sinaAppSecret=request.POST.get("sinaappsecret"),
-        TencentAppKey=request.POST.get("tencentappkey"),
-        TencentAppSecret=request.POST.get("tencentappsecret"),
-        MoeWebsite=request.POST.get("moesite"),
-        sameItemInterval=request.POST.get("sameiteminterval")
-        )
+    if configHandler:
+        configHandler.update(
+            SinaAppKey=request.POST.get("sinaappkey"),
+            sinaAppSecret=request.POST.get("sinaappsecret"),
+            TencentAppKey=request.POST.get("tencentappkey"),
+            TencentAppSecret=request.POST.get("tencentappsecret"),
+            MoeWebsite=request.POST.get("moesite"),
+            sameItemInterval=request.POST.get("sameiteminterval")
+            )
+    else:
+        configHandler = MoePadConfig(
+            SinaAppKey=request.POST.get("sinaappkey"),
+            sinaAppSecret=request.POST.get("sinaappsecret"),
+            TencentAppKey=request.POST.get("tencentappkey"),
+            TencentAppSecret=request.POST.get("tencentappsecret"),
+            MoeWebsite=request.POST.get("moesite"),
+            sameItemInterval=request.POST.get("sameiteminterval"))
+        configHandler.save()
     field_list = generateFieldListFromConfig()
     c = RequestContext(request, {"field_list": field_list})
     return render_to_response('index.html', c)
 
 
 def generateFieldListFromConfig():
-    config = MoePadConfig.objects.all()[0]
+    try:
+        config = MoePadConfig.objects.all()[0]
+        SinaAppKey = config.SinaAppKey
+        sinaAppSecret = config.sinaAppSecret
+        TencentAppKey = config.TencentAppKey
+        TencentAppSecret = config.TencentAppSecret
+        MoeWebsite = config.MoeWebsite
+        sameItemInterval = config.sameItemInterval
+
+    except:
+        SinaAppKey = ''
+        sinaAppSecret = ''
+        TencentAppKey = ''
+        TencentAppSecret = ''
+        MoeWebsite = ''
+        sameItemInterval = ''
+
     field_list = []
-    field_list.append({"input_id": "sinaappkey", "field_name": "Sina App Key:", "value": config.SinaAppKey})
-    field_list.append({"input_id": "sinaappsecret", "field_name": "Sina App Secret:", "value": config.sinaAppSecret})
-    field_list.append({"input_id": "tencentappkey", "field_name": "Tencent App Key:", "value": config.TencentAppKey})
-    field_list.append({"input_id": "tencentappsecret", "field_name": "Tencent App Secret:", "value": config.TencentAppSecret})
-    field_list.append({"input_id": "moesite", "field_name": "MoePad程序所在域名*:", "value": config.MoeWebsite})
-    field_list.append({"input_id": "sameiteminterval", "field_name": "已刷出条目禁止时长(小时)*:", "value": config.sameItemInterval})
+    field_list.append({"input_id": "sinaappkey", "field_name": "Sina App Key:", "value": SinaAppKey})
+    field_list.append({"input_id": "sinaappsecret", "field_name": "Sina App Secret:", "value": sinaAppSecret})
+    field_list.append({"input_id": "tencentappkey", "field_name": "Tencent App Key:", "value": TencentAppKey})
+    field_list.append({"input_id": "tencentappsecret", "field_name": "Tencent App Secret:", "value": TencentAppSecret})
+    field_list.append({"input_id": "moesite", "field_name": "MoePad程序所在域名*:", "value": MoeWebsite})
+    field_list.append({"input_id": "sameiteminterval", "field_name": "已刷出条目禁止时长(小时)*:", "value": sameItemInterval})
     return field_list
 
 

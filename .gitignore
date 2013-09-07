@@ -1,9 +1,11 @@
+
 *.pyc
 *.log
-mpconfig.py
+mpconfig.*
 MoePad.db
 .idea
 tmp.jpg
+todo.md
 
 # C extensions
 *.so

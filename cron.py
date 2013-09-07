@@ -1,13 +1,6 @@
 from apscheduler.scheduler import Scheduler
 import urllib2
-import mpconfig
 from myscript import MpConfig, UpdateItems
-
-website = mpconfig.MoeWebsite
-check_update_url = website + "/send/"
-clean_cache_url = website + "/clean_cached_items/"
-reauth_url = website + "/send_reauth_mail/"
-rtsina_url = website + "/retweet/sina/"
 
 
 def check_update():

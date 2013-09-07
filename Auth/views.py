@@ -13,10 +13,6 @@ def getMoeWebSite():
     # a = MoePadConfig.objects.all()[0]
     return MoePadConfig.objects.all()[0].MoeWebsite
 
-MoeWebsite = getMoeWebSite()
-
-if not MoeWebsite.startswith("http"):
-    raise Exception
 
 log = logging.getLogger('moepad')
 def getSinaAppInfo():
@@ -25,7 +21,7 @@ def getSinaAppInfo():
 
 def authSina(code):
     SinaAppKey, SinaAppSecret = getSinaAppInfo()
-
+    MoeWebsite = getMoeWebSite()
     client = weibo.APIClient(SinaAppKey, SinaAppSecret, MoeWebsite+"/sinacallback")
     r = client.request_access_token(code)
 
@@ -39,11 +35,13 @@ def authSina(code):
 
 def authSinaUrl():
     SinaAppKey, SinaAppSecret = getSinaAppInfo()
+    MoeWebsite = getMoeWebSite()
     client = weibo.APIClient(SinaAppKey, SinaAppSecret, MoeWebsite+"/sinacallback")
     return client.get_authorize_url()
 
 
 def authTencentUrl():
+    MoeWebsite = getMoeWebSite()
     auth = qqweibo.OAuthHandler(TencentAppKey, TencentAppSecret, callback=MoeWebsite+"/tencentcallback")
     url = auth.get_authorization_url()
     f = open('tx_rt', 'wb')
@@ -61,6 +59,7 @@ def sinacallback(request):
 @login_required
 def tencentcallback(request):
     verifier = request.GET['oauth_verifier']
+    MoeWebsite = getMoeWebSite()
     auth = qqweibo.OAuthHandler(TencentAppKey, TencentAppSecret, callback=MoeWebsite+"/tencentcallback")
 
     f = open('tx_rt', 'rb')
@@ -110,6 +109,7 @@ def clean_cached_items(requset):
 
 
 def getWeiboAuthedApi(source, user_type):
+    MoeWebsite = getMoeWebSite()
     try:
         weiboData = WeiboAuth.objects.get(source=source, user_type=user_type)
     except Exception as e:
