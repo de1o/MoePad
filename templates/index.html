@@ -22,15 +22,23 @@
 			{% endfor %}
 		{% endif %}
 
+		<form id="mpconfig" action="" method="post">
+		{% csrf_token %}
+		{{form}}
+		<br>
+		<input class="btn-success btn span1 " type="submit" value="提交"/>
+			
+
+		</form>
+<!-- 
 		{% for field in field_list %}
 
 		<label for="{{field.input_id}}" class="inlinelabel span2">{{field.field_name}}</label>
 		<input class="span3" name="{{field.input_id}}" type="text" value="{{field.value}}"/>
 		<br/>
-		{% endfor %}
+		{% endfor %} -->
 
 		<div class="span4 inlinelabel"></div>
-		<input class="btn-success btn span1 " type="submit" value="提交"/>
 	</form>
 
 </div>

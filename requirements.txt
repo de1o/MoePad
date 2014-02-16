@@ -3,3 +3,5 @@ APScheduler==2.1.0
 BeautifulSoup==3.2.1
 pysqlite==2.6.3
 python-memcached==1.53
+redis==2.8.0
+requests
