@@ -3,11 +3,16 @@
 # @Author: Sai
 # @Date:   2014-02-12 23:13:59
 # @Email:  email@example.com
-# @Last modified by:   Sai
-# @Last modified time: 2014-02-16 16:23:15
+# @Last modified by:   delo
+# @Last modified time: 2014-02-19 23:15:25
 # 🎵 ミライナイト
 import redis
 import logging
+import logging.handlers
+from datetime import datetime
+import pytz
+import os
+import os.path as p
 
 rs = redis.Redis("localhost")
 logger = logging.getLogger('moepad')
@@ -20,8 +25,13 @@ def sub_dict(somedict, somekeys, default=None):
 def loggerInit(logfile):
     logger = logging.getLogger(logfile)
     logger.setLevel(logging.DEBUG)
-    fh = logging.handlers.RotatingFileHandler(
-        logfile, maxBytes=10*1024*1024, backupCount=2)
+    try:
+        fh = logging.handlers.RotatingFileHandler(
+            logfile, maxBytes=10*1024*1024, backupCount=2)
+    except IOError:
+        os.makedirs(p.dirname(logfile))
+        fh = logging.handlers.RotatingFileHandler(
+            logfile, maxBytes=10*1024*1024, backupCount=2)
     fh.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s - %(message)s')
     fh.setFormatter(formatter)
@@ -29,6 +39,6 @@ def loggerInit(logfile):
     return logger
 
 
-def mystrptime(str):
-    return datetime.datetime.strptime(str, "%Y-%m-%dT%H:%M:%SZ").replace(
-        tzinfo=timezone.utc)
+def utcnow():
+    tz = pytz.timezone('UTC')
+    return datetime.now(tz)

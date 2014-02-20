@@ -1,8 +1,7 @@
 from apscheduler.scheduler import Scheduler
 import urllib2
 import os
-os.environ['DJANGO_SETTINGS_MODULE'] = "MoePad.settings"
-from MoeWiki.update import UpdateItems
+from update import UpdateItems
 
 
 def check_update():
@@ -40,10 +39,13 @@ def updateNewItem():
     update_sched.start()
 
 
+def main():
+    print 'hello world'
+
 if __name__ == '__main__':
-    day_send()
-    night_send()
-    updateNewItem()
+    # day_send()
+    # night_send()
+    # updateNewItem()
     print 'scheduler tasks started'
     # check_update()
     # send()

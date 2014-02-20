@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # import os
-# os.environ['DJANGO_SETTINGS_MODULE'] = "MoePad.settings"
+# os.environ['DJANGO_SETTINGS_MODULE'] = "MoeDj.settings"
 import datetime
 import requests
 import json
@@ -12,13 +12,11 @@ import logging
 import logging.handlers
 import traceback
 from BeautifulSoup import BeautifulSoup
-from django.utils import timezone
 
-from Auth import weibo
-from Auth.weibo import APIError
-from MoePad.mputils import loggerInit, mystrptime, rs
-from MoePad.mpconfig import MPConf
-from Auth.views import WeiboAuthInfoRedis
+from weibowrapper import WeiboApi, WeiboAuthInfoRedis
+from weibo import APIError
+from mputils import rs, loggerInit, utcnow
+from mpconf import MPConf
 
 
 logger = loggerInit('MoePad.log')
@@ -95,25 +93,6 @@ def getImage(link):
     return result
 
 
-class WeiboApi(object):
-
-    def __init__(self, appkey, appsecret, callback, token, expires_in):
-        super(WeiboApi, self).__init__()
-        self.client = weibo.APIClient(appkey, appsecret, callback)
-        self.client.set_access_token(token, expires_in)
-
-    def send(self, text, url, img=None):
-        short_link = self.client.short_url__shorten(url_long=url)
-        shortUrl = short_link["urls"][0]["url_short"]
-        text = ' '.join([text, shortUrl])
-
-        if img:
-            with open('tmp.jpg', 'rb') as fpic:
-                r = self.client.statuses.upload.post(status=text, pic=fpic)
-        else:
-            r = self.client.statuses.update.post(status=text)
-
-
 def filterForbiddenItems(that):
     forbiddenKeys = rs.lrange("ForbiddenItem", 0, -1)
     for key in forbiddenKeys:
@@ -156,14 +135,15 @@ class UpdateItems(object):
 
     def fetchNewItemGenerated(self, mins):
         url_t = "http://zh.moegirl.org/api.php?format=json&action=query&list=recentchanges&rcstart=%s&rcend=%s&rcdir=newer&rcnamespace=0&rctoponly&rctype=edit|new"
-        rcstart = calendar.timegm((timezone.now() - datetime.timedelta(
+        rcstart = calendar.timegm((utcnow() - datetime.timedelta(
             minutes=mins)).utctimetuple())
-        rcend = calendar.timegm(timezone.now().utctimetuple())
+        rcend = calendar.timegm(utcnow().utctimetuple())
         url = url_t % (rcstart, rcend)
         print url
         r = requests.get(url)
         rjson = json.loads(r.text)
         self.rch = rjson['query']['recentchanges']
+        logger.debug(self.rch)
 
     # if item is in verifying pool and is about to expire, delete from zset and
     # move from verifying pool to verified pool, then add a verified item in
@@ -174,13 +154,19 @@ class UpdateItems(object):
         verifyingItems = filter(lambda x: x.startswith(VERIFYING_PREFIX),
                                 expiringItems)
         for verifyingKey in verifyingItems:
+            print rs.zscore(ORDERED_SET, verifyingKey) - time.time(), '---'
             if rs.zscore(ORDERED_SET, verifyingKey) < time.time():
+                # if a verifying key in zset, if it is expired by score,
+                # first check if this key exist in verifying pool,
+                # if not, just delete from zset
+                rs.zrem(ORDERED_SET, verifyingKey)
+                data = rs.hgetall(verifyingKey)
+                if not data:
+                    break
                 title = verifyingKey.strip(VERIFYING_PREFIX)
                 verifiedKey = VERIFIED_PREFIX + title
-                rs.zrem(ORDERED_SET, verifyingKey)
                 rs.zadd(ORDERED_SET, VERIFIED_PREFIX+title,
                         time.time()+VERIFIED_EXPIRE)
-                data = rs.hgetall(verifyingKey)
                 rs.hmset(verifiedKey, data)
                 rs.expire(verifiedKey, VERIFIED_EXPIRE)
                 rs.delete(verifyingKey)
@@ -216,6 +202,7 @@ class UpdateItems(object):
         try:
             self.send()
             logger.info("Sending: "+self.ItemTobeSend['title']+" Succ")
+            self.updateSentRecord()
         except APIError as e:
             if 'expired_token' in e:
                 print "Token Expired"
@@ -223,13 +210,14 @@ class UpdateItems(object):
             logger.info(traceback.format_exc())
         except:
             logger.info(traceback.format_exc())
-        self.updateSentRecord()
 
     def getItemTobeSend(self):
         ItemTobeSendTitle = None
         expiringItems = rs.zrange(ORDERED_SET, 0, -1)
         verifiedItems = filter(lambda x: x.startswith(VERIFIED_PREFIX),
                                expiringItems)
+        print expiringItems
+        print verifiedItems
         if verifiedItems:
             ItemTobeSendTitle = verifiedItems.pop(0)
         if not ItemTobeSendTitle:
@@ -255,14 +243,16 @@ class UpdateItems(object):
 
         weiboTitle = self.ItemTobeSend['title']
         weiboLink = "http://zh.moegirl.org/" + \
-                    urllib.quote(weiboTitle.encode('utf-8'))
+                    urllib.quote(weiboTitle)
 
-        self.weiboApi.send(weiboTitle, weiboLink, getImage(weiboLink))
+        self.weiboApi.send(weiboTitle.decode('utf-8'),
+                           weiboLink, getImage(weiboLink))
 
     def updateSentRecord(self):
         key = SENT_PREFIX + self.ItemTobeSend['title']
         rs.hmset(key, self.ItemTobeSend)
         rs.expire(key, SENT_EXPIRE)
+        rs.delete(self.ItemTobeSendTitle)
 
         # remove original item from zset and re-add into zset as sent state
         rs.zrem(ORDERED_SET, self.ItemTobeSendTitle)
